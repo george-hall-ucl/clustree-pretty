@@ -14,3 +14,4 @@ LICENSE
 ^\.github$
 ^CRAN-SUBMISSION$
 ^pkgdown$
+^NOTES-pyclustree-restyle\.md$

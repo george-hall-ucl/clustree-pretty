@@ -133,21 +133,45 @@ clustree(nba_clusts, prefix = "K", node_colour = "sc3_stability")
 
 ## Layout
 
-By default the tree is drawn using the Reingold-Tilford tree layout algorithm
-which tries to place nodes below their parents [@Reingold1981-iy]. Alternatively 
-we could use the Sugiyama layout by specifying the `layout` argument. This 
-algorithm tries to minimise the number of crossing edges [@Sugiyama1981-wu] and 
-can produce more attractive trees in some cases.
+By default the tree is drawn using the `"clustree"` layout. Each clustering is
+placed on its own row, with the lowest resolution at the top, and the clusters
+in a row are evenly spaced and centred. Because the spacing is constant, rows
+containing more clusters are wider than those containing fewer, which gives the
+tree a symmetrical outline.
+
+The clusters in each row are also ordered. Working down the tree, each cluster
+is placed under the cluster at the previous resolution that contributes the
+greatest proportion of itself to it, and the clusters sharing a parent are
+sorted by how much of that parent they represent. This keeps related clusters
+next to each other and reduces the number of crossing edges. To place the
+clusters in sorted order instead, set `order_clusters` to `FALSE`.
+
+```{r nba-layout-unordered}
+clustree(nba_clusts, prefix = "K", order_clusters = FALSE)
+```
+
+Each row is labelled with the clustering it shows. These labels can be removed
+by setting `show_res_labels` to `FALSE`, which also brings back the node colour
+legend.
+
+```{r nba-layout-nolabels}
+clustree(nba_clusts, prefix = "K", show_res_labels = FALSE)
+```
+
+The tree can also be drawn using one of the layout algorithms provided by the
+`igraph` package. The Reingold-Tilford tree layout algorithm tries to place
+nodes below their parents [@Reingold1981-iy], while the Sugiyama layout tries to
+minimise the number of crossing edges [@Sugiyama1981-wu].
 
 ```{r nba-layout}
 clustree(nba_clusts, prefix = "K", layout = "sugiyama")
 ```
 
-For both of these layout algorithms `clustree()` uses slightly modified versions 
-of the tree by default. Only the core network of edges, those that are the 
-highest in-proportion edge for a node, are used when creating the layout. In most 
-cases  this leads to more attractive trees that are easier to interpret. To turn 
-this off, and use all edges for deciding the layout, we can set `use_core_edges` 
+For both of these layout algorithms `clustree()` uses slightly modified versions
+of the tree by default. Only the core network of edges, those that are the
+highest in-proportion edge for a node, are used when creating the layout. In most
+cases  this leads to more attractive trees that are easier to interpret. To turn
+this off, and use all edges for deciding the layout, we can set `use_core_edges`
 to `FALSE`.
 
 ```{r nba-layout-nocore}
@@ -366,29 +390,36 @@ overlay_list$y_side
 # Modifying appearance
 
 The `clustree()` function returns a `ggplot` object which can be modified using
-functions in the **{ggplot2}** or **{ggraph}** packages. For example we could 
-change the colour scales used for the nodes and edges:
+functions in the **{ggplot2}** or **{ggraph}** packages. For example we could
+change the colour scale used for the nodes:
 
 ```{r modify}
-clustree(nba_clusts, prefix = "K") +
-    scale_color_brewer(palette = "Set1") +
-    scale_edge_color_continuous(low = "blue", high = "red")
+clustree(nba_clusts, prefix = "K", show_res_labels = FALSE) +
+    scale_color_brewer(palette = "Set1")
+```
+
+Edges are drawn in a single colour, set using the `edge_colour` argument, and
+their width shows the proportion of a cluster that comes from each of the
+clusters above it:
+
+```{r modify-edges}
+clustree(nba_clusts, prefix = "K", edge_colour = "steelblue", edge_width = 3)
 ```
 
 ## Legends
 
 The way `ggplot` objects is displayed is relative to the size of the plotting
 window or output file. While the main plot will always fit sometimes legends
-will be placed outside the visible area. One solution to this is to simply 
+will be placed outside the visible area. One solution to this is to simply
 increase the size of the image. An alternative solution is to turn off some of
 the legends, either by setting some of the aesthetics to static values or by
 using the `guides` function. We could also move them to somewhere they might
-fit better. For example let's remove the edge legends and move the rest
-to the bottom:
+fit better. For example let's remove the node size legend and move the rest to
+the bottom:
 
 ```{r legends}
-clustree(nba_clusts, prefix = "K") +
-    guides(edge_colour = FALSE, edge_alpha = FALSE) +
+clustree(nba_clusts, prefix = "K", show_res_labels = FALSE) +
+    guides(size = "none") +
     theme(legend.position = "bottom")
 ```
 

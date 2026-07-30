@@ -18,7 +18,8 @@ clustree(x, ...)
   metadata = NULL,
   count_filter = 0,
   prop_filter = 0.1,
-  layout = c("tree", "sugiyama"),
+  layout = c("clustree", "tree", "sugiyama"),
+  order_clusters = TRUE,
   use_core_edges = TRUE,
   highlight_core = FALSE,
   node_colour = prefix,
@@ -30,15 +31,18 @@ clustree(x, ...)
   node_alpha_aggr = NULL,
   node_text_size = 3,
   scale_node_text = FALSE,
-  node_text_colour = "black",
+  node_text_colour = "white",
   node_text_angle = 0,
   node_label = NULL,
   node_label_aggr = NULL,
   node_label_size = 3,
   node_label_nudge = -0.2,
   edge_width = 1.5,
+  edge_colour = "grey35",
   edge_arrow = TRUE,
   edge_arrow_ends = c("last", "first", "both"),
+  show_res_labels = TRUE,
+  res_label_size = 3,
   show_axis = FALSE,
   return = c("plot", "graph", "layout"),
   ...
@@ -77,12 +81,20 @@ graph}
 \item{prop_filter}{in proportion threshold for filtering edges in the
 clustering graph}
 
-\item{layout}{string specifying the "tree" or "sugiyama" layout, see
-\code{\link[igraph:layout_as_tree]{igraph::layout_as_tree()}} and \code{\link[igraph:layout_with_sugiyama]{igraph::layout_with_sugiyama()}} for details}
+\item{layout}{string specifying the "clustree", "tree" or "sugiyama" layout.
+The "clustree" layout places each resolution on its own evenly spaced row,
+see \code{\link[=clustree_layout_positions]{clustree_layout_positions()}} for details. For "tree" and "sugiyama" see
+\code{\link[igraph:layout_as_tree]{igraph::layout_as_tree()}} and \code{\link[igraph:layout_with_sugiyama]{igraph::layout_with_sugiyama()}}}
+
+\item{order_clusters}{logical, whether to order the clusters within each
+resolution so that related clusters are placed near each other, see
+\code{\link[=order_clustree_clusters]{order_clustree_clusters()}} for details. Only used when \code{layout} is
+"clustree".}
 
 \item{use_core_edges}{logical, whether to only use core tree (edges with
 maximum in proportion for a node) when creating the graph layout, all
-(unfiltered) edges will still be displayed}
+(unfiltered) edges will still be displayed. Only used when \code{layout} is
+"tree" or "sugiyama".}
 
 \item{highlight_core}{logical, whether to increase the edge width of the core
 network to make it easier to see}
@@ -132,12 +144,24 @@ cluster}
 \item{node_label_nudge}{numeric value giving nudge in y direction for node
 labels}
 
-\item{edge_width}{numeric value giving the width of plotted edges}
+\item{edge_width}{numeric value giving the maximum width of plotted edges,
+edges are scaled between this value and a third of this value according to
+the proportion of cells each edge represents (or, when \code{highlight_core} is
+\code{TRUE}, between this value and a third of this value for non-core edges)}
+
+\item{edge_colour}{colour value used for plotted edges}
 
 \item{edge_arrow}{logical indicating whether to add an arrow to edges}
 
 \item{edge_arrow_ends}{string indicating which ends of the line to draw arrow
 heads if \code{edge_arrow} is \code{TRUE}, one of "last", "first", or "both"}
+
+\item{show_res_labels}{logical, whether to label each row of the tree with
+the clustering it shows. When these labels are shown the node colour legend
+is hidden if nodes are coloured by clustering, as the labels already show
+that information. Only used when \code{layout} is "clustree".}
+
+\item{res_label_size}{numeric value giving the size of the row label text}
 
 \item{show_axis}{whether to show resolution axis}
 
@@ -196,17 +220,28 @@ must take a vector of values and return a single value.
 
 \strong{Layout}
 
-The clustering tree can be displayed using either the Reingold-Tilford tree
-layout algorithm or the Sugiyama layout algorithm for layered directed
-acyclic graphs. These layouts were selected as the are the algorithms
-available in the \code{igraph} package designed for trees. The Reingold-Tilford
-algorithm places children below their parents while the Sugiyama places
-nodes in layers while trying to minimise the number of crossing edges. See
-\code{\link[igraph:layout_as_tree]{igraph::layout_as_tree()}} and \code{\link[igraph:layout_with_sugiyama]{igraph::layout_with_sugiyama()}} for more
-details. When \code{use_core_edges} is \code{TRUE} (default) only the core tree of the
-maximum in proportion edges for each node are used for constructing the
-layout. This can often lead to more attractive layouts where the core tree is
-more visible.
+The clustering tree can be displayed using the "clustree" layout (the
+default) or one of the tree layout algorithms provided by the \code{igraph}
+package.
+
+The "clustree" layout places each resolution on its own row, with the lowest
+resolution at the top. Clusters within a row are evenly spaced and centred,
+so rows containing more clusters are wider than those containing fewer,
+giving the tree a symmetrical outline. By default the clusters in each row
+are ordered so that each is placed under the cluster at the previous
+resolution it is most closely related to, which keeps related clusters
+together and reduces the number of crossing edges. Set \code{order_clusters} to
+\code{FALSE} to place clusters in sorted order instead.
+
+The alternative layouts are the Reingold-Tilford tree layout algorithm and
+the Sugiyama layout algorithm for layered directed acyclic graphs. The
+Reingold-Tilford algorithm places children below their parents while the
+Sugiyama places nodes in layers while trying to minimise the number of
+crossing edges. See \code{\link[igraph:layout_as_tree]{igraph::layout_as_tree()}} and
+\code{\link[igraph:layout_with_sugiyama]{igraph::layout_with_sugiyama()}} for more details. For these layouts, when
+\code{use_core_edges} is \code{TRUE} (default) only the core tree of the maximum in
+proportion edges for each node are used for constructing the layout. This can
+often lead to more attractive layouts where the core tree is more visible.
 }
 \examples{
 data(nba_clusts)

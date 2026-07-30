@@ -123,7 +123,7 @@ clustree_overlay <- function (x, ...) {
 
 
 #' @importFrom ggplot2 ggplot geom_segment arrow aes aes_ guides theme_minimal
-#' scale_colour_hue scale_alpha
+#' scale_colour_manual scale_fill_manual scale_alpha
 #' @importFrom grid unit
 #' @importFrom dplyr %>%
 #' @importFrom rlang .data :=
@@ -319,7 +319,12 @@ clustree_overlay.matrix <- function(x, prefix, metadata, x_value, y_value,
     gg <- gg +
         scale_size(range = c(node_size_range[1], node_size_range[2])) +
         scale_alpha(limits = c(0, 1)) +
-        scale_colour_hue(drop = FALSE) +
+        # The number of nodes is an upper bound on the number of levels any of
+        # the discrete aesthetics can take
+        scale_colour_manual(values = clustree_palette_n(nrow(nodes)),
+                            drop = FALSE) +
+        scale_fill_manual(values = clustree_palette_n(nrow(nodes)),
+                          drop = FALSE) +
         theme_minimal()
 
     if (plot_sides) {
@@ -755,8 +760,8 @@ overlay_node_points <- function(nodes, x_value, y_value, node_colour, node_size,
 #'
 #' @keywords internal
 #'
-#' @importFrom ggplot2 scale_colour_hue geom_jitter scale_y_reverse scale_alpha
-#' ylab theme
+#' @importFrom ggplot2 scale_colour_manual scale_fill_manual geom_jitter
+#' scale_y_reverse scale_alpha ylab theme
 #' element_line element_blank
 #' @importFrom stats median
 plot_overlay_side <- function(nodes, edges, points, prefix, side_value,
@@ -843,7 +848,12 @@ plot_overlay_side <- function(nodes, edges, points, prefix, side_value,
         scale_y_reverse(breaks = y_levels) +
         scale_size(range = c(node_size_range[1], node_size_range[2])) +
         scale_alpha(limits = c(0, 1)) +
-        scale_colour_hue(drop = FALSE) +
+        # The number of nodes is an upper bound on the number of levels any of
+        # the discrete aesthetics can take
+        scale_colour_manual(values = clustree_palette_n(nrow(nodes)),
+                            drop = FALSE) +
+        scale_fill_manual(values = clustree_palette_n(nrow(nodes)),
+                          drop = FALSE) +
         ylab(prefix) +
         theme_minimal() +
         theme(axis.line.x = element_line(linewidth = 1, colour = "grey50"),

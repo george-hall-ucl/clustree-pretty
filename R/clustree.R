@@ -13,11 +13,18 @@
 #' graph
 #' @param prop_filter in proportion threshold for filtering edges in the
 #' clustering graph
-#' @param layout string specifying the "tree" or "sugiyama" layout, see
-#' [igraph::layout_as_tree()] and [igraph::layout_with_sugiyama()] for details
+#' @param layout string specifying the "clustree", "tree" or "sugiyama" layout.
+#' The "clustree" layout places each resolution on its own evenly spaced row,
+#' see [clustree_layout_positions()] for details. For "tree" and "sugiyama" see
+#' [igraph::layout_as_tree()] and [igraph::layout_with_sugiyama()]
+#' @param order_clusters logical, whether to order the clusters within each
+#' resolution so that related clusters are placed near each other, see
+#' [order_clustree_clusters()] for details. Only used when `layout` is
+#' "clustree".
 #' @param use_core_edges logical, whether to only use core tree (edges with
 #' maximum in proportion for a node) when creating the graph layout, all
-#' (unfiltered) edges will still be displayed
+#' (unfiltered) edges will still be displayed. Only used when `layout` is
+#' "tree" or "sugiyama".
 #' @param highlight_core logical, whether to increase the edge width of the core
 #' network to make it easier to see
 #' @param node_colour either a value indicating a colour to use for all nodes or
@@ -50,10 +57,19 @@
 #' @param node_label_size numeric value giving the size of node label text
 #' @param node_label_nudge numeric value giving nudge in y direction for node
 #' labels
-#' @param edge_width numeric value giving the width of plotted edges
+#' @param edge_width numeric value giving the maximum width of plotted edges,
+#' edges are scaled between this value and a third of this value according to
+#' the proportion of cells each edge represents (or, when `highlight_core` is
+#' `TRUE`, between this value and a third of this value for non-core edges)
+#' @param edge_colour colour value used for plotted edges
 #' @param edge_arrow logical indicating whether to add an arrow to edges
 #' @param edge_arrow_ends string indicating which ends of the line to draw arrow
 #' heads if `edge_arrow` is `TRUE`, one of "last", "first", or "both"
+#' @param show_res_labels logical, whether to label each row of the tree with
+#' the clustering it shows. When these labels are shown the node colour legend
+#' is hidden if nodes are coloured by clustering, as the labels already show
+#' that information. Only used when `layout` is "clustree".
+#' @param res_label_size numeric value giving the size of the row label text
 #' @param show_axis whether to show resolution axis
 #' @param exprs source of gene expression information to use as node aesthetics,
 #' for `SingleCellExperiment` objects it must be a name in `assayNames(x)`, for
@@ -102,17 +118,28 @@
 #'
 #' **Layout**
 #'
-#' The clustering tree can be displayed using either the Reingold-Tilford tree
-#' layout algorithm or the Sugiyama layout algorithm for layered directed
-#' acyclic graphs. These layouts were selected as the are the algorithms
-#' available in the `igraph` package designed for trees. The Reingold-Tilford
-#' algorithm places children below their parents while the Sugiyama places
-#' nodes in layers while trying to minimise the number of crossing edges. See
-#' [igraph::layout_as_tree()] and [igraph::layout_with_sugiyama()] for more
-#' details. When `use_core_edges` is `TRUE` (default) only the core tree of the
-#' maximum in proportion edges for each node are used for constructing the
-#' layout. This can often lead to more attractive layouts where the core tree is
-#' more visible.
+#' The clustering tree can be displayed using the "clustree" layout (the
+#' default) or one of the tree layout algorithms provided by the `igraph`
+#' package.
+#'
+#' The "clustree" layout places each resolution on its own row, with the lowest
+#' resolution at the top. Clusters within a row are evenly spaced and centred,
+#' so rows containing more clusters are wider than those containing fewer,
+#' giving the tree a symmetrical outline. By default the clusters in each row
+#' are ordered so that each is placed under the cluster at the previous
+#' resolution it is most closely related to, which keeps related clusters
+#' together and reduces the number of crossing edges. Set `order_clusters` to
+#' `FALSE` to place clusters in sorted order instead.
+#'
+#' The alternative layouts are the Reingold-Tilford tree layout algorithm and
+#' the Sugiyama layout algorithm for layered directed acyclic graphs. The
+#' Reingold-Tilford algorithm places children below their parents while the
+#' Sugiyama places nodes in layers while trying to minimise the number of
+#' crossing edges. See [igraph::layout_as_tree()] and
+#' [igraph::layout_with_sugiyama()] for more details. For these layouts, when
+#' `use_core_edges` is `TRUE` (default) only the core tree of the maximum in
+#' proportion edges for each node are used for constructing the layout. This can
+#' often lead to more attractive layouts where the core tree is more visible.
 #'
 #' @return a `ggplot` object (default), a `tbl_graph` object or a `ggraph`
 #' layout object depending on the value of `return`
@@ -128,10 +155,9 @@ clustree <- function (x, ...) {
 
 
 #' @importFrom ggraph ggraph geom_edge_link circle geom_node_point
-#' geom_node_text scale_edge_colour_gradientn scale_edge_alpha
-#' scale_edge_width_manual
-#' @importFrom ggplot2 arrow aes_ guides guide_legend scale_size
-#' scale_y_continuous theme element_text
+#' geom_node_text scale_edge_width scale_edge_width_manual
+#' @importFrom ggplot2 arrow aes_ guides guide_legend scale_size geom_label
+#' scale_x_continuous scale_y_continuous expansion theme element_text
 #' @importFrom grid unit
 #' @importFrom dplyr %>%
 #'
@@ -142,7 +168,9 @@ clustree.matrix <- function(x, prefix,
                             metadata         = NULL,
                             count_filter     = 0,
                             prop_filter      = 0.1,
-                            layout           = c("tree", "sugiyama"),
+                            layout           = c("clustree", "tree",
+                                                 "sugiyama"),
+                            order_clusters   = TRUE,
                             use_core_edges   = TRUE,
                             highlight_core   = FALSE,
                             node_colour      = prefix,
@@ -154,15 +182,18 @@ clustree.matrix <- function(x, prefix,
                             node_alpha_aggr  = NULL,
                             node_text_size   = 3,
                             scale_node_text  = FALSE,
-                            node_text_colour = "black",
+                            node_text_colour = "white",
                             node_text_angle  = 0,
                             node_label       = NULL,
                             node_label_aggr  = NULL,
                             node_label_size  = 3,
                             node_label_nudge = -0.2,
                             edge_width       = 1.5,
+                            edge_colour      = "grey35",
                             edge_arrow       = TRUE,
                             edge_arrow_ends  = c("last", "first", "both"),
+                            show_res_labels  = TRUE,
+                            res_label_size   = 3,
                             show_axis        = FALSE,
                             return           = c("plot", "graph", "layout"),
                             ...) {
@@ -190,8 +221,17 @@ clustree.matrix <- function(x, prefix,
     checkmate::assert_number(node_label_nudge)
     checkmate::assert_logical(scale_node_text, any.missing = FALSE, len = 1)
     checkmate::assert_number(edge_width, lower = 0)
+    tryCatch(col2rgb(edge_colour),
+             error = function(e) {
+                 stop("edge_colour is set to '", edge_colour, "' ",
+                      "which is not a valid colour name.", call. = FALSE)
+             }
+    )
     checkmate::assert_logical(edge_arrow, any.missing = FALSE, len = 1)
     layout <- match.arg(layout)
+    checkmate::assert_flag(order_clusters)
+    checkmate::assert_flag(show_res_labels)
+    checkmate::assert_number(res_label_size, lower = 0)
     checkmate::assert_flag(use_core_edges)
     return <- match.arg(return)
     edge_arrow_ends <- match.arg(edge_arrow_ends)
@@ -248,12 +288,29 @@ clustree.matrix <- function(x, prefix,
 
     graph <- graph %>%
         tidygraph::activate("edges") %>%
-        tidygraph::mutate(width = edge_width) %>%
         tidygraph::group_by(.data$to) %>%
         tidygraph::mutate(is_core = .data$in_prop == max(.data$in_prop)) %>%
         tidygraph::ungroup()
 
-    if (use_core_edges) {
+    # Edge widths either separate the core tree from the rest or show the
+    # proportion of a cluster that comes from the cluster above it
+    if (highlight_core) {
+        graph <- graph %>%
+            tidygraph::activate("edges") %>%
+            tidygraph::mutate(edge_weight = .data$is_core)
+    } else {
+        graph <- graph %>%
+            tidygraph::activate("edges") %>%
+            tidygraph::mutate(edge_weight = .data$in_prop)
+    }
+
+    layout_name <- layout
+
+    if (layout == "clustree") {
+        positions <- clustree_layout_positions(graph, x, prefix, order_clusters)
+        layout <- ggraph::create_layout(graph, "manual", x = positions$x,
+                                        y = positions$y)
+    } else if (use_core_edges) {
         layout <- graph %>%
             tidygraph::activate("edges") %>%
             tidygraph::filter(.data$is_core) %>%
@@ -279,49 +336,57 @@ clustree.matrix <- function(x, prefix,
             circle_size_start <- ifelse(edge_arrow_ends == "last", 0.1,
                                         mean(node_size_range) * 1.5)
         }
-        gg <- gg + geom_edge_link(arrow = arrow(length = unit(edge_width * 5,
+        gg <- gg + geom_edge_link(arrow = arrow(length = unit(edge_width * 4,
                                                               "points"),
-                                                ends = edge_arrow_ends),
+                                                ends = edge_arrow_ends,
+                                                type = "closed"),
                                   end_cap = circle(circle_size_end, "points"),
                                   start_cap = circle(circle_size_start, "points"),
-                                  aes(colour = .data$count,
-                                      alpha = .data$in_prop,
-                                      edge_width = .data$is_core))
+                                  colour = edge_colour,
+                                  aes(edge_width = .data$edge_weight))
 
     } else {
-        gg <- gg + geom_edge_link(aes(colour = .data$count,
-                                      alpha = .data$in_prop,
-                                      edge_width = .data$is_core))
+        gg <- gg + geom_edge_link(colour = edge_colour,
+                                  aes(edge_width = .data$edge_weight))
     }
 
     if (highlight_core) {
-        core_width <- edge_width * 2
-        gg <- gg + scale_edge_width_manual(values = c(edge_width, core_width))
+        gg <- gg + scale_edge_width_manual(name = "is_core",
+                                           values = c(edge_width / 3,
+                                                      edge_width))
     } else {
-        gg <- gg + scale_edge_width_manual(values = c(edge_width, edge_width),
-                                           guide = "none")
+        gg <- gg + scale_edge_width(range = c(edge_width / 3, edge_width),
+                                    guide = "none")
     }
 
-    gg <- gg + scale_edge_colour_gradientn(colours = viridis::viridis(256)) +
-        scale_edge_alpha(limits = c(0, 1))
-
     # Plot nodes
+    node_colour_is_aes <- graph_attr$node_colour %in%
+        names(igraph::vertex_attr(graph))
+
     gg <- gg + add_node_points(graph_attr$node_colour, graph_attr$node_size,
                                graph_attr$node_alpha,
                                names(igraph::vertex_attr(graph)))
+
+    if (node_colour_is_aes) {
+        gg <- add_clustree_colour_scale(
+            gg, igraph::vertex_attr(graph, graph_attr$node_colour), "colour"
+        )
+    }
 
     # Plot node text
     if (scale_node_text && !is.numeric(node_size)) {
         gg <- gg + geom_node_text(aes(label = .data$cluster,
                                       size = .data[[graph_attr$node_size]]),
                                   colour = node_text_colour,
-                                  angle = node_text_angle
+                                  angle = node_text_angle,
+                                  fontface = "bold"
                                   )
     } else {
         gg <- gg + geom_node_text(aes(label = .data$cluster),
                                   size = node_text_size,
                                   colour = node_text_colour,
-                                  angle = node_text_angle
+                                  angle = node_text_angle,
+                                  fontface = "bold"
                                  )
     }
 
@@ -332,21 +397,65 @@ clustree.matrix <- function(x, prefix,
                                    node_text_colour,
                                    node_label_nudge,
                                    names(igraph::vertex_attr(graph)))
+
+        if (node_colour_is_aes) {
+            gg <- add_clustree_colour_scale(
+                gg, igraph::vertex_attr(graph, graph_attr$node_colour), "fill"
+            )
+        }
     }
 
     gg <- gg + scale_size(range = node_size_range) +
         ggraph::theme_graph(base_family = "",
                             plot_margin = ggplot2::margin(2, 2, 2, 2))
 
+    # Nodes are drawn at a fixed size in points rather than in data units, so
+    # the panel needs padding to stop those at the edges being clipped
+    left_pad <- 0.3
+
+    # Label each row of the tree with the clustering it shows
+    if (show_res_labels && layout_name == "clustree") {
+        res_labels <- data.frame(
+            x = min(layout$x) - 0.75,
+            # Rows run from the lowest resolution at the top downwards
+            y = sort(unique(layout$y), decreasing = TRUE),
+            label = paste0(prefix, res_clean),
+            stringsAsFactors = FALSE
+        )
+
+        # Enough room for the labels, which sit to the left of the widest row
+        # and grow leftwards from their position as they get longer
+        left_pad <- 0.75 + 0.35 * max(nchar(res_labels$label))
+
+        gg <- gg +
+            geom_label(data = res_labels,
+                       aes(x = .data$x, y = .data$y, label = .data$label),
+                       hjust = 1, size = res_label_size, colour = "black",
+                       fill = "white", label.r = unit(0.15, "lines"))
+
+        # The labels already show what the node colours mean
+        if (node_colour_is_aes && graph_attr$node_colour == prefix) {
+            gg <- gg + guides(colour = "none", fill = "none")
+        }
+    }
+
+    gg <- gg +
+        scale_x_continuous(expand = expansion(mult = 0.05,
+                                              add = c(left_pad, 0.3)))
+
     if (show_axis) {
         gg <- gg +
             ylab(prefix) +
             scale_y_continuous(breaks = sort(unique(layout$y)),
-                               labels = rev(res_clean)) +
+                               labels = rev(res_clean),
+                               expand = expansion(mult = 0.05, add = 0.3)) +
             theme(axis.text.y = element_text(),
                   axis.title = element_text(),
                   axis.title.x = element_blank(),
                   panel.grid.major.y = element_line(colour = "grey92"))
+    } else {
+        gg <- gg +
+            scale_y_continuous(expand = expansion(mult = 0.05, add = 0.3))
     }
 
     if (return == "plot") {

@@ -1,3 +1,29 @@
+# _clustree_ (development version)
+
+## Major changes
+
+Redesign the appearance of `clustree()` plots, taking inspiration from the
+_pyclustree_ Python package.
+
+* Add a new `"clustree"` layout, which is now the default. Each clustering is
+  placed on its own row and the clusters within a row are evenly spaced and
+  centred, giving the tree a symmetrical outline. Clusters are ordered so that
+  each is placed under the cluster it is most closely related to, which reduces
+  the number of crossing edges. This can be turned off using the new
+  `order_clusters` argument. The previous `"tree"` and `"sugiyama"` layouts are
+  still available via the `layout` argument.
+* Label each row of the tree with the clustering it shows, controlled by the new
+  `show_res_labels` and `res_label_size` arguments. The node colour legend is
+  hidden when these labels are shown and nodes are coloured by clustering, as
+  the labels already show that information.
+* Draw edges in a single colour rather than a viridis gradient of the number of
+  samples, and scale their width by the proportion of samples they represent
+  rather than using transparency. The colour can be set using the new
+  `edge_colour` argument.
+* Use a categorical colour palette rather than the _ggplot2_ default for
+  discrete node colours. Continuous node colours still use viridis.
+* Draw node text in bold white by default so it is readable on top of nodes.
+
 # _clustree_ 0.5.1 (2023-11-05)
 
 * Minor updates for compatibility with _Seurat_ >= 5.0.0 and _ggplot2_ >= 3.4.0
